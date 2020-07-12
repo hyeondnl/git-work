@@ -95,13 +95,13 @@ acommit()
 {
 git add .
 if [[ "$COMMITTED" == 0 ]]; then
-  git commit --quiet -m "automatic commit on `date +"%Y-%m-%d %T %Z"`" > /dev/null
+  git commit --quiet -m "automatic commit on `date +"%Y-%m-%d %T %Z"`" > /dev/null -S
   if [[ "$?" == 0 ]]; then progress-bar "Writing commit: automatic commit on `date +"%Y-%m-%d %T %Z"`" 0.01; COMMITTED=1
   else echo >&2 "nothing to commit, working tree clean."; COMMITTED=0
   fi
 else
   progress-bar "Writing commit: automatic commit on `date +"%Y-%m-%d %T %Z"`" 0.01
-  git commit -m "automatic commit on `date +"%Y-%m-%d %T"`" &> /dev/null --quiet
+  git commit -m "automatic commit on `date +"%Y-%m-%d %T"`" &> /dev/null -S --quiet
 fi
 }
 
