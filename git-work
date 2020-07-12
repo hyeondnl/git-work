@@ -100,7 +100,7 @@ if [[ "$COMMITTED" == 0 ]]; then
   else echo >&2 "nothing to commit, working tree clean."; COMMITTED=0
   fi
 else
-  progress-bar "Writing commit: automatic commit on `date +"%Y-%m-%d %T"`" 0.01
+  progress-bar "Writing commit: automatic commit on `date +"%Y-%m-%d %T %Z"`" 0.01
   git commit -m "automatic commit on `date +"%Y-%m-%d %T"`" &> /dev/null --quiet
 fi
 }
