@@ -1,0 +1,305 @@
+#!/bin/bash
+IN_GIT=0
+REMOTE_ON=0
+COMMITTED=0
+IS_WILDCARD=0
+IS_BEGINNING=1
+COMMITTED=0
+IS_DONE_CALLED=0
+
+BRANCH=""
+INITBR=""
+
+REMOTE="origin"
+
+OPTION=""
+OPCODE=1
+DO_NOTHING=0
+
+usage()
+{
+cat << EOF
+usage: git work [@<refspec>] [<options>] [#<repository>]
+
+  @<refspec>           call the branch
+  %<repository>        call the remote repository
+
+  -x, --skip           do nothing on the current branch
+  -d, --diff           show the difference with remote
+  -f, --pull           pull from the remote
+  -c, --commit         commit the changes
+  -p, --push           commit the changes an push 
+  -m, --merge          merge, or request merge the branch following
+
+EOF
+}
+progress-bar() # progress-bar msg tickrate
+{ 
+local tickrate=${2}
+local msg=${1}
+local duration=8
+local padding=0
+local margin=$((7+4*duration+1))
+local cnt=$(($(tput cols)-${#msg}-padding-margin))
+print_msg() {
+  printf "$msg";
+  for i in $(seq 1 $cnt); do printf " "; done
+  printf ' |';
+}
+already_done() { printf "▇▇▇▇%.0s" $(seq 1 $elapsed); }
+repushing() { for ((repush=$elapsed; repush<$duration; repush++)); do printf "    "; done }
+percentage() { printf "| %s%%" $(( (($elapsed)*100)/($duration)*100/100 )); }
+clean_line() { printf "\r"; }
+
+for (( elapsed=1; elapsed<=$duration; elapsed++ )); do
+  print_msg; already_done; repushing; percentage
+  sleep $tickrate*$((1 + RANDOM % 7))
+  clean_line
+done
+clean_line
+echo
+}
+
+checkRemote() #checkRemote remote branch
+{
+local rem=$REMOTE; local bch=$BRANCH
+if [[ "$#" == 2 ]]; then rem=$1; bch=$2; fi
+if [[ "$#" == 1 ]]; then bch=$1; fi
+if [[ "$(git ls-remote --heads $rem $bch 2> /dev/null | wc -l)" != "       0" ]]; then
+  progress-bar "Checking status of $rem/$bch" 0.01
+else
+  echo >&2 "fatal: no branch $rem/$bch"
+  exit 1;
+fi
+}
+
+apull() # pull #origin @master
+{
+local rem=$REMOTE; local bch=$BRANCH
+if [[ "$#" == 2 ]]; then rem=$1; bch=$2; fi
+if [[ "$#" == 1 ]]; then bch=$1; fi
+checkRemote $rem $bch
+progress-bar "Pull from $rem/$bch" 0.02
+git fetch $rem $bch --quiet
+if [[ "$(git diff "$bch" "$rem"/"$bch" | wc -l)" != "       0" ]]; then
+  git pull $rem $bch &> /dev/null --quiet
+  echo "pull completed:"
+  echo "    $(git log "$rem"/"$bch" --oneline -1)"
+  echo "    $(git log "$rem"/"$bch" -1 --format=%cd)"
+else
+  echo >&2 "nothing to pull from $rem/$bch."
+fi
+}
+
+acommit()
+{
+git add .
+if [[ "$COMMITTED" == 0 ]]; then
+  git commit --quiet -m "automatic commit on `date +"%Y-%m-%d %T"`" > /dev/null
+  if [[ "$?" == 0 ]]; then progress-bar "Writing commit: automatic commit on `date +"%Y-%m-%d %T"`" 0.01; COMMITTED=1
+  else echo >&2 "nothing to commit, working tree clean."; COMMITTED=0
+  fi
+else
+  progress-bar "Writing commit: automatic commit on `date +"%Y-%m-%d %T"`" 0.01
+  git commit -m "automatic commit on `date +"%Y-%m-%d %T"`" &> /dev/null --quiet
+fi
+}
+
+apush() # push #origin @master
+{
+local rem=$REMOTE; local bch=$BRANCH
+if [[ "$#" == 2 ]]; then rem=$1; bch=$2; fi
+if [[ "$#" == 1 ]]; then bch=$1; fi
+apull $rem $bch
+acommit
+if [[ $(git log origin/${INITBR}..HEAD | wc -l) != "       0" ]]; then COMMITTED=1; fi
+if [[ "$COMMITTED" == "0" ]]; then return; fi
+progress-bar "Push to $rem/$bch" 0.02
+git push $rem $bch &> /dev/null --quiet
+echo "push completed."
+COMMITTED=0
+}
+
+checkAndCheckout()
+{
+local br=$1
+if git show-ref --q --heads $br; then
+  progress-bar "Checking status of local/$br" 0.01
+  git checkout $br &> /dev/null --quiet
+  echo "local/$br exists."
+  echo "Switched to branch '$br'"
+else
+  echo >&2 "no local/$br"
+fi
+}
+
+optionSelector()
+{
+case "$OPTION" in
+  x)
+    :
+  ;;
+  f)
+    apull $REMOTE $BRANCH
+  ;;
+  p)
+    apush $REMOTE $BRANCH
+  ;;
+  *)
+    echo "NOT AVAILABLE COMMAND"
+  ;;
+esac
+OPTION=""
+}
+
+wildcardHandler()
+{
+if [[ "$1" =~ ^[@%]+ ]]; then
+IS_WILDCARD=1; local arg=$1; local mk=${arg:0:1}; local br=${arg:1}; local rm=${arg:1};
+BRANCH=$(git rev-parse --abbrev-ref HEAD);
+#echo "                                                                                      WILDCARD: $1, BRANCH: $BRANCH"
+
+if [[ "$OPTION" == "" ]]; then #no option in advance
+case "$mk" in
+  @)
+    if [[ "$br" == "done" ]]; then #@done
+      IS_DONE_CALLED=1
+      apush $REMOTE $BRANCH
+      if [[ "$IS_BEGINNING" == 0 ]]; then
+        if [[ $BRANCH != $INITBR ]]; then
+          git checkout $INITBR
+        fi
+      fi
+    else
+      IS_DONE_CALLED=0
+      if [[ "$br" == "." ]]; then br=$BRANCH; fi
+      if [[ "$BRANCH" != "$br" ]]; then
+        if [[ "$IS_BEGINNING" == 1 ]]; then
+          IS_BEGINNING=0
+        else
+          apush
+        fi
+        checkAndCheckout $br
+      else
+        if [[ "$IS_BEGINNING" == 1 ]]; then
+          IS_BEGINNING=0
+        fi
+        echo "Already on '$br'" #command
+      fi
+    fi
+  ;;
+  %)
+    echo >&2 "unexpected repository: $br"
+  ;;
+esac
+else #option exists in advance
+case "$mk" in
+  @)
+    if [[ "$br" == "." ]]; then br=$BRANCH; fi
+#    if [[ "$br" == "done" ]]; then #@done
+#      echo >&2 "unaccepted wildcard: @done"
+    case "$OPTION" in
+      "f")
+        if [[ "$br" == "done" ]]; then
+        IS_DONE_CALLED=1
+        apull $REMOTE $BRANCH
+        if [[ $BRANCH != $INITBR ]]; then
+          git checkout $INITBR
+        fi
+        else
+        IS_DONE_CALLED=0
+        apull $REMOTE $br
+        fi
+      ;;
+    esac
+    OPTION=""
+  ;;
+  %)
+    if [[ "$rm" == "." ]]; then rm=$REMOTE; fi
+        case "$OPTION" in
+      "f")
+        if [[ "$rm" != "done" ]]; then
+        apull $rm $BRANCH
+        else
+        IS_DONE_CALLED=0
+        apull $REMOTE $br
+        fi
+      ;;
+    esac
+    OPTION=""
+  ;;
+esac
+fi
+fi
+}
+
+### BEGIN ##############
+INITBR=$(git rev-parse --abbrev-ref HEAD)
+BRANCH=$INITBR
+if [[ $(git log origin/${INITBR}..HEAD | wc -l) != "       0" ]]; then COMMITTED=1; fi
+
+if [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" = "true" ]; then
+  IN_GIT=1
+fi
+
+if [[ "$#" == 0 ]]; then #no options
+  git work -p
+  exit 0
+fi
+
+while true; do
+if [[ "$#" == 0 ]]; then #reach EOC
+  if [[ "$IS_DONE_CALLED" == 1 ]]; then #done at last
+    if [[ "$OPTION" == "" ]]; then echo "Done"; exit 0; else optionSelector; fi
+  else
+    if [[ "$OPTION" == "" ]]; then apush; else optionSelector; fi
+  fi
+  echo "Done"
+  exit 0
+fi
+wildcardHandler "$1"
+if [[ "$IS_WILDCARD" == 1 ]]; then
+  IS_WILDCARD=0
+  shift
+else
+  case $1 in
+    -x|--skip)
+      OPTION="x"
+      OPCODE=0
+      shift
+      ;;
+    -d|--diff)
+      OPTION="d"
+      ;;
+    -f|--pull)
+      OPTION="f"
+      shift
+      ;;
+    -c|--commit)
+      init
+      commit
+      shift
+      ;;
+    -p|--push)
+      OPTION="p"
+      shift
+      ;;
+    -m|--merge)
+      OPTION="m"
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      exit 0
+      ;;
+    *)
+      arg=$1
+      echo >&2 "error: unknown switch \`${arg:1}'"
+      usage
+      exit 1
+      ;;
+  esac
+fi
+done
