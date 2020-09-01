@@ -66,7 +66,7 @@ local rem=$REMOTE; local bch=$BRANCH
 if [[ "$#" == 2 ]]; then rem=$1; bch=$2; fi
 if [[ "$#" == 1 ]]; then bch=$1; fi
 if [[ "$(git ls-remote --heads $rem $bch 2> /dev/null | wc -l)" != "       0" ]]; then
-  progress-bar "Checking status of $rem/$bch" 0.01
+  progress-bar "Checking status of $rem/$bch" 1/100
 else
   echo >&2 "fatal: no branch $rem/$bch"
   exit 1;
@@ -79,7 +79,7 @@ local rem=$REMOTE; local bch=$BRANCH
 if [[ "$#" == 2 ]]; then rem=$1; bch=$2; fi
 if [[ "$#" == 1 ]]; then bch=$1; fi
 checkRemote $rem $bch
-progress-bar "Pull from $rem/$bch" 0.02
+progress-bar "Pull from $rem/$bch" 1/50
 git fetch $rem $bch --quiet
 if [[ "$(git diff "$bch" "$rem"/"$bch" | wc -l)" != "       0" ]]; then
   git pull $rem $bch &> /dev/null --quiet
