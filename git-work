@@ -53,7 +53,7 @@ clean_line() { printf "\r"; }
 
 for (( elapsed=1; elapsed<=$duration; elapsed++ )); do
   print_msg; already_done; repushing; percentage
-  sleep $tickrate*$((1 + RANDOM % 7))
+  sleep $(( tickrate*$((1 + RANDOM % 7)) ))
   clean_line
 done
 clean_line
