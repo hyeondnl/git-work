@@ -96,11 +96,11 @@ acommit()
 git add .
 if [[ "$COMMITTED" == 0 ]]; then
   git commit --quiet -m "automatic commit on `date +"%Y-%m-%d %T %Z"`" > /dev/null -S
-  if [[ "$?" == 0 ]]; then progress-bar "Writing commit: automatic commit on `date +"%Y-%m-%d %T %Z"`" 0.01; COMMITTED=1
+  if [[ "$?" == 0 ]]; then progress-bar "Writing commit: automatic commit on `date +"%Y-%m-%d %T %Z"`" 1/100; COMMITTED=1
   else echo >&2 "nothing to commit, working tree clean."; COMMITTED=0
   fi
 else
-  progress-bar "Writing commit: automatic commit on `date +"%Y-%m-%d %T %Z"`" 0.01
+  progress-bar "Writing commit: automatic commit on `date +"%Y-%m-%d %T %Z"`" 1/100
   git commit -m "automatic commit on `date +"%Y-%m-%d %T"`" &> /dev/null -S --quiet
 fi
 }
@@ -114,7 +114,7 @@ apull $rem $bch
 acommit
 if [[ $(git log origin/${INITBR}..HEAD | wc -l) != "       0" ]]; then COMMITTED=1; fi
 if [[ "$COMMITTED" == "0" ]]; then return; fi
-progress-bar "Push to $rem/$bch" 0.02
+progress-bar "Push to $rem/$bch" 1/50
 git push $rem $bch &> /dev/null --quiet
 echo "push completed."
 COMMITTED=0
@@ -124,7 +124,7 @@ checkAndCheckout()
 {
 local br=$1
 if git show-ref --q --heads $br; then
-  progress-bar "Checking status of local/$br" 0.01
+  progress-bar "Checking status of local/$br" 1/100
   git checkout $br &> /dev/null --quiet
   echo "local/$br exists."
   echo "Switched to branch '$br'"
