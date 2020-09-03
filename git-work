@@ -101,7 +101,7 @@ if [[ "$COMMITTED" == 0 ]]; then
   fi
 else
   progress-bar "Writing commit: automatic commit on `date +"%Y-%m-%d %T %Z"`" 1/100
-  git commit -m "automatic commit on `date +"%Y-%m-%d %T"`" -m "This commit is automatically done by git-work. There is no specific update log provided." &> /dev/null -S --quiet
+  git commit -m "automatic commit on `date +"%Y-%m-%d %T"`" -m "The commit is automatically done by git-work. No specific update log provided." &> /dev/null -S --quiet
 fi
 }
 
